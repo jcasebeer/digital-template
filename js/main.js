@@ -1,52 +1,181 @@
 window.onload = function() {
-    // You might want to start with a template that uses GameStates:
-    //     https://github.com/photonstorm/phaser/tree/master/resources/Project%20Templates/Basic
-    
-    // You can copy-and-paste the code from any of the examples at http://examples.phaser.io here.
-    // You will need to change the fourth parameter to "new Phaser.Game()" from
-    // 'phaser-example' to 'game', which is the id of the HTML element where we
-    // want the game to go.
-    // The assets (and code) can be found at: https://github.com/photonstorm/phaser/tree/master/examples/assets
-    // You will need to change the paths you pass to "game.load.image()" or any other
-    // loading functions to reflect where you are putting the assets.
-    // All loading functions will typically all be found inside "preload()".
+    /*
+        Game Theme: Dog Catcher
+        Game Title: Space Animal Control (work in progress)
+
+        What can you do?
+            Right now you can just fly a little spaceship around with the arrow keys, 
+            i spent a lot of time on abstractions so that it is easy to add new functionality
+            in the future.
+    */
     
     "use strict";
     
+    // First create a phaser "game" object.
     var game = new Phaser.Game( 800, 600, Phaser.AUTO, 'game', { preload: preload, create: create, update: update } );
     
-    function preload() {
-        // Load an image and call it 'logo'.
-        game.load.image( 'logo', 'assets/phaser.png' );
+    //Define some useful functions
+
+    function degstorads(degs) 
+    //Given Degrees, Return Radians
+    {
+        return degs * (Math.PI/180);
+    }
+
+    function lengthdir_x(len,dir)
+    /*
+        given a length and an angle (in Degrees), return the horizontal (x) component of 
+        the vector of the angle and direction
+    */
+    {
+        return len * Math.cos(degstorads(dir));
+    }
+
+    function lengthdir_y(len,dir)
+    // Performs the same function as lengthdir_x, but returns the vertical component
+    {
+        return len * Math.sin(degstorads(dir));
+    }
+
+    function point_distance(x1,y1,x2,y2) 
+    // Returns the distance between two points
+    // will be used to perform circle collisions
+    {
+        var xdif = (x1-x2);
+        var ydir = (y1-y2);
+        return Math.sqrt(xdif*xdir+ydif*ydif);
+    }
+
+    function entity(x,y,dir,sprite) 
+    // Parent "class" used to wrap some of phaser's sprite functionality
+    // Any class that inherits from entity must have a function called step 
+    {
+        this.x = x;
+        this.y = y;
+        this.dir = dir;
+        this.sprite = sprite;
+        this.speed = 0;
+
+        //create a phaser sprite and add the entity's values to it 
+        this.PhSprite = game.add.sprite(this.x,this.y,this.sprite);
+        this.PhSprite.anchor.setTo(0.5,0.5);
+        this.PhSprite.smoothed = false; 
+        this.PhSprite.angle = this.dir;
+        this.PhSprite.x = this.x;
+        this.PhSprite.y = this.y;
+
+       
+        this.update = function() 
+        //Meant to be called every time the games loop runs, updates an entities x,y positions 
+        //Based on its speed and direction variables and updates the phaser sprite variables
+        //accordingly
+        {
+            this.x+=lengthdir_x(this.speed,this.dir);
+            this.y+=lengthdir_y(this.speed,this.dir);
+
+            this.PhSprite.x = this.x;
+            this.PhSprite.y = this.y;
+            this.PhSprite.angle = this.dir;
+        }
+    }
+
+    function player(x,y)
+    // INHERITS: Entity
+    // A little ship controllable with the arrow keys
+    {
+
+        //code to inherit from Entity
+        var parent = new entity(x,y,90,'ship');
+        for (var i in parent)
+            this[i] = parent[i];
+
+        this.step = function() 
+        // meant to be called every time the game loop runs, lets the player control
+        // the ship
+        {
+            //rotate ship left
+            if (leftKey.isDown)
+                this.dir-=2;
+
+            //rotate ship right
+            if (rightKey.isDown)
+                this.dir+=2;
+
+            //add velocity to ship
+            if (upKey.isDown)
+                this.speed+=0.1;
+
+            //subtract veolicty until the ship comes to a stop
+            if (downKey.isDown)
+            {
+
+                if (this.speed>0)
+                    this.speed-=0.1;
+            }
+
+            //limit ships max speed
+            if (this.speed>4)
+                this.speed=4;
+
+            //wrap coordinates horizontally
+            if (this.x>800)
+                this.x=0;
+            if (this.x<0)
+                this.x=800;
+
+            //wrap coordinates vertically
+            if(this.y>600)
+                this.y=0;
+            if(this.y<0)
+                this.y=600;
+  
+        }
+
+    }
+
+    function preload() 
+    //function used to load assets
+    {
+        game.load.image('vignette','assets/grad.png');
+        game.load.image('ship','assets/ship.png');
+    }
+
+    // variable for our only entity, in the future this will be a 
+    // list that can be iterated over all entities
+    var obj_player;
+    
+    // variables used to store keypresses
+    var upKey;
+    var downKey;
+    var leftKey;
+    var rightKey;
+    
+
+    function create() 
+    {
+
+        // set background color to white and set the background to 'vignette'
+        game.stage.backgroundColor = '#ffffff';
+        game.add.tileSprite(0,0,800,600,'vignette')
+
+        // assign keys to our input variables
+        upKey = game.input.keyboard.addKey(Phaser.Keyboard.UP);
+        downKey = game.input.keyboard.addKey(Phaser.Keyboard.DOWN);
+        leftKey = game.input.keyboard.addKey(Phaser.Keyboard.LEFT);
+        rightKey = game.input.keyboard.addKey(Phaser.Keyboard.RIGHT);
+
+        // initialze the player entity
+        obj_player = new player(400,300);
+
     }
     
-    var bouncy;
-    
-    function create() {
-        // Create a sprite at the center of the screen using the 'logo' image.
-        bouncy = game.add.sprite( game.world.centerX, game.world.centerY, 'logo' );
-        // Anchor the sprite at its center, as opposed to its top-left corner.
-        // so it will be truly centered.
-        bouncy.anchor.setTo( 0.5, 0.5 );
-        
-        // Turn on the arcade physics engine for this sprite.
-        game.physics.enable( bouncy, Phaser.Physics.ARCADE );
-        // Make it bounce off of the world bounds.
-        bouncy.body.collideWorldBounds = true;
-        
-        // Add some text using a CSS style.
-        // Center it in X, and position its top 15 pixels from the top of the world.
-        var style = { font: "25px Verdana", fill: "#9999ff", align: "center" };
-        var text = game.add.text( game.world.centerX, 15, "Build something awesome.", style );
-        text.anchor.setTo( 0.5, 0.0 );
-    }
-    
-    function update() {
-        // Accelerate the 'logo' sprite towards the cursor,
-        // accelerating at 500 pixels/second and moving no faster than 500 pixels/second
-        // in X or Y.
-        // This function returns the rotation angle that makes it visually match its
-        // new trajectory.
-        bouncy.rotation = game.physics.arcade.accelerateToPointer( bouncy, this.game.input.activePointer, 500, 500, 500 );
+    function update() 
+    {
+
+        //update entities
+        obj_player.step();
+
+        //update phaser sprites
+        obj_player.update();
     }
 };

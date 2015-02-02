@@ -249,15 +249,16 @@ window.onload = function() {
                     SEED = szudzkik(tilex,tiley);
                     
                     // 50% of tiles will have a star
-                    if (rand()>0.5)
-                    {
-                        // set the stars z value
-                        z = rand()*400;
-                        // calculate the stars parallax based on its depth
-                        parallax = depth / (depth - z);
-                        // draw the star!
-                        stars.circle( parallax*(128*(tilex+rand()) - game.camera.x) , parallax*(128*(tiley+rand()) - game.camera.y),1+(z/400)*4);
-                    }
+                    for(var n = 0;n<3;n++)
+                        if (rand()>0.5)
+                        {
+                            // set the stars z value
+                            z = rand()*400;
+                            // calculate the stars parallax based on its depth
+                            parallax = depth / (depth - z);
+                            // draw the star!
+                            stars.circle( parallax*(128*(tilex+rand()) - game.camera.x) , parallax*(128*(tiley+rand()) - game.camera.y),1+(z/400)*4);
+                        }
 
                 }
 

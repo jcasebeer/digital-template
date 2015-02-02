@@ -7,13 +7,14 @@ window.onload = function() {
             Right now you can just fly a little spaceship around with the arrow keys, 
             i spent a lot of time on abstractions so that it is easy to add new functionality
             in the future.
+
+            the camera is now centered on the spaceship and there is a procedurally generated starfield
     */
     
     "use strict";
     
     // First create a phaser "game" object.
     var game = new Phaser.Game( 800, 600, Phaser.AUTO, 'game', { preload: preload, create: create, update: update } );
-    
     //Define some useful functions
 
     function degstorads(degs) 
@@ -46,6 +47,25 @@ window.onload = function() {
         return Math.sqrt(xdif*xdir+ydif*ydif);
     }
 
+    var SEED;
+    function rand()
+    // random number generator for javascript that I found on stackoverflow,
+    // because you apparently can't seed javascripts built in rng
+    // found here: http://stackoverflow.com/questions/521295/javascript-random-seeds
+    {
+        var rand = Math.sin(++SEED)*10000;
+        return rand - Math.floor(rand);
+    }
+
+    function szudzkik(x,y)
+    // pairing function
+    {
+        if (x<y)
+            return y*y+x;
+        else
+            return x*x+x+y;
+    }
+
     function entity(x,y,dir,sprite) 
     // Parent "class" used to wrap some of phaser's sprite functionality
     // Any class that inherits from entity must have a function called step 
@@ -55,12 +75,13 @@ window.onload = function() {
         this.dir = dir;
         this.sprite = sprite;
         this.speed = 0;
+        this.angle = 0;
 
         //create a phaser sprite and add the entity's values to it 
         this.PhSprite = game.add.sprite(this.x,this.y,this.sprite);
         this.PhSprite.anchor.setTo(0.5,0.5);
         this.PhSprite.smoothed = false; 
-        this.PhSprite.angle = this.dir;
+        this.PhSprite.angle = this.angle;
         this.PhSprite.x = this.x;
         this.PhSprite.y = this.y;
 
@@ -75,7 +96,7 @@ window.onload = function() {
 
             this.PhSprite.x = this.x;
             this.PhSprite.y = this.y;
-            this.PhSprite.angle = this.dir;
+            this.PhSprite.angle = this.angle;
         }
     }
 
@@ -85,7 +106,7 @@ window.onload = function() {
     {
 
         //code to inherit from Entity
-        var parent = new entity(x,y,90,'ship');
+        var parent = new entity(x,y,0,'ship');
         for (var i in parent)
             this[i] = parent[i];
 
@@ -95,20 +116,22 @@ window.onload = function() {
         {
             //rotate ship left
             if (leftKey.isDown)
-                this.dir-=2;
+                this.angle-=2;
 
             //rotate ship right
             if (rightKey.isDown)
-                this.dir+=2;
+                this.angle+=2;
 
             //add velocity to ship
             if (upKey.isDown)
+            {
+                this.dir = this.angle;
                 this.speed+=0.1;
+            }
 
             //subtract veolicty until the ship comes to a stop
             if (downKey.isDown)
             {
-
                 if (this.speed>0)
                     this.speed-=0.1;
             }
@@ -117,17 +140,23 @@ window.onload = function() {
             if (this.speed>4)
                 this.speed=4;
 
+            if (this.speed>0.1)
+                this.speed-=0.005;
+
+            if (this.speed<0)
+                this.speed=0;
+
             //wrap coordinates horizontally
-            if (this.x>800)
+            if (this.x>32000)
                 this.x=0;
             if (this.x<0)
-                this.x=800;
+                this.x=32000;
 
             //wrap coordinates vertically
-            if(this.y>600)
+            if(this.y>32000)
                 this.y=0;
             if(this.y<0)
-                this.y=600;
+                this.y=32000;
   
         }
 
@@ -143,7 +172,14 @@ window.onload = function() {
     // variable for our only entity, in the future this will be a 
     // list that can be iterated over all entities
     var obj_player;
-    
+
+    //variables for our procedurally generated starfield
+    var stars;
+    var starfield;
+    // depth for the parallax effect of the starfield
+    var depth = 600;
+
+
     // variables used to store keypresses
     var upKey;
     var downKey;
@@ -154,9 +190,18 @@ window.onload = function() {
     function create() 
     {
 
-        // set background color to white and set the background to 'vignette'
+        // set background color to white
         game.stage.backgroundColor = '#ffffff';
-        game.add.tileSprite(0,0,800,600,'vignette')
+        
+        //create a bitmapdata object to store our starfield
+        stars = game.add.bitmapData(800,600);
+        stars.smoothed = false;
+        starfield = stars.addToWorld();
+
+        //make the world much bigger
+        game.world.setBounds(0,0,32000,32000);
+
+
 
         // assign keys to our input variables
         upKey = game.input.keyboard.addKey(Phaser.Keyboard.UP);
@@ -165,12 +210,57 @@ window.onload = function() {
         rightKey = game.input.keyboard.addKey(Phaser.Keyboard.RIGHT);
 
         // initialze the player entity
-        obj_player = new player(400,300);
+        obj_player = new player(16000,16000);
+
+        // have camera follow player
+        game.camera.follow(obj_player.PhSprite, Phaser.Camera.FOLLOW_TOPDOWN_TIGHT);
+        //game.camera.follow(obj_player.PhSprite);
 
     }
     
     function update() 
     {
+        // attach the starfield image to our camera
+        starfield.x = game.camera.x;
+        starfield.y = game.camera.y;
+        
+        // draw a vignette
+        stars.draw('vignette',0,0);
+
+            // now to draw the actual stars with a parallax effect
+            var tilex;
+            var tiley;
+            var parallax;
+            var z;
+
+            // the starfield is broken into "tiles", each containing a single star
+            for(var i =0;i<8;i++)
+                for(var w=0;w<6;w++)
+                {
+                    // get the current tile value based on the viewports coordinates
+                    // the ~~ nonsense is apparently the fastest way to make sure you're
+                    // doing integer division in javascript
+                    tilex = ~~(game.camera.x/128)+i;
+                    tiley = ~~(game.camera.y/128)+w;
+
+                    // set the seed of our random number generator based on the tiles coordinates
+                    // szudzkik is a pairing function so that we can get a single unique number from
+                    // two other numbers
+                    SEED = szudzkik(tilex,tiley);
+                    
+                    // 50% of tiles will have a star
+                    if (rand()>0.5)
+                    {
+                        // set the stars z value
+                        z = rand()*400;
+                        // calculate the stars parallax based on its depth
+                        parallax = depth / (depth - z);
+                        // draw the star!
+                        stars.circle( parallax*(128*(tilex+rand()) - game.camera.x) , parallax*(128*(tiley+rand()) - game.camera.y),1+(z/400)*4);
+                    }
+
+                }
+
 
         //update entities
         obj_player.step();

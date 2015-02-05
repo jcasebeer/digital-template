@@ -522,6 +522,12 @@ window.onload = function() {
         rightKey = game.input.keyboard.addKey(Phaser.Keyboard.RIGHT);
         shootKey = game.input.keyboard.addKey(Phaser.Keyboard.X);
 
+        game.input.keyboard.addKeyCapture(Phaser.Keyboard.UP);
+        game.input.keyboard.addKeyCapture(Phaser.Keyboard.DOWN);
+        game.input.keyboard.addKeyCapture(Phaser.Keyboard.LEFT);
+        game.input.keyboard.addKeyCapture(Phaser.Keyboard.RIGHT);
+        game.input.keyboard.addKeyCapture(Phaser.Keyboard.X);
+
         //create a bitmapdata object to store our starfield
         stars = game.add.bitmapData(800,600);
         stars.smoothed = false;

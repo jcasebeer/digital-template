@@ -146,44 +146,80 @@ window.onload = function() {
             this[i] = parent[i];
 
         this.radius = 16;
+        this.life = 1000;
         this.PhSprite.scale.setTo(2,2);
         this.can_shoot = true;
         this.shootTime = 0;
+        this.dead = false;
+        this.deadTime = 600
+        this.activateThrust = false;
 
         this.step = function() 
         // meant to be called every time the game loop runs, lets the player control
         // the ship
         {
-            //rotate ship left
-            if (leftKey.isDown)
-                this.angle-=4;
-
-            //rotate ship right
-            if (rightKey.isDown)
-                this.angle+=4;
-
-            //add velocity to ship
-            if (upKey.isDown)
+            if (this.life <= 0 )
             {
+                this.life = 0;
+                this.dead = true;
+                this.angle+=-15+Math.random()*30;
                 this.dir = this.angle;
-                this.speed+=0.1;
+                this.speed = 4;
+                screen_shake+=2;
+                if (Math.random()<0.02)
+                    entityCreate(new explode(this.x,this.y));
+                if (this.deadTime > 0)
+                    this.deadTime--;
+                else
+                    gameState = 2;
             }
 
-            if (shootKey.isDown)
+            if (!this.dead)
             {
-                if (this.can_shoot)
+                //rotate ship left
+                if (leftKey.isDown)
+                    this.angle-=3;
+
+                //rotate ship right
+                if (rightKey.isDown)
+                    this.angle+=3;
+
+                //add velocity to ship
+                if (upKey.isDown)
                 {
-                    entityCreate(new bullet(this.x+lengthdir_x(16,this.angle),this.y+lengthdir_y(16,this.angle),this.angle,this.speed));
-                    this.can_shoot = false;
+                    this.dir = this.angle;
+                    this.speed+=0.1;
+
+                    if (this.activateThrust === false)
+                    {
+                        snd_explode.play('',0,0.5,false,true);
+                        this.activateThrust = true;
+                        screen_shake+=8;
+                    }
+                }
+                else
+                {
+                    this.activateThrust = false;
+                }
+
+                if (shootKey.isDown)
+                {
+                    if (this.can_shoot)
+                    {
+                        entityCreate(new bullet(this.x+lengthdir_x(16,this.angle),this.y+lengthdir_y(16,this.angle),this.angle,this.speed,0));
+                        this.can_shoot = false;
+                        screen_shake += 4;
+                        snd_shoot.play();
+                    }
+                }
+
+                //subtract veolicty until the ship comes to a stop
+                if (downKey.isDown)
+                {
+                    if (this.speed>0)
+                        this.speed-=0.1;
                 }
             }
-            //subtract veolicty until the ship comes to a stop
-            if (downKey.isDown)
-            {
-                if (this.speed>0)
-                    this.speed-=0.1;
-            }
-
             //limit ships max speed
             if (this.speed>7)
                 this.speed=7;
@@ -221,8 +257,22 @@ window.onload = function() {
             for (i in entities)
             {
                 if (entities[i] instanceof dog)
-                    if ( point_distance(this.x,this.y,entities[i].x,entities[i].y)<(this.radius+entities[i].radius) ) 
+                {
+                    if ( entities[i].dist<(this.radius+entities[i].radius) ) 
+                    {
                         entities[i].alive = false;
+                        score+=100;
+                        snd_bark.play('',0,0.5,false,true);
+                    }
+                }
+                else if (entities[i] instanceof bullet && entities[i].target === 1)
+                    if (point_distance(this.x,this.y,entities[i].x,entities[i].y)<(this.radius+entities[i].radius) )
+                    {
+                        entities[i].alive = false;
+                        entityCreate(new explode(this.x,this.y));
+                        this.life -= 100;
+                    }
+                
             }
 
             this.moveToDir();
@@ -239,7 +289,8 @@ window.onload = function() {
 
         this.PhSprite.scale.setTo(2,2);
         this.radius = 16;
-        this.maxSpeed = 7
+        this.maxSpeed = 4+Math.random()*3;
+        this.skill = 0.1+Math.random()*0.5;
 
         this.xspeed = 0;
         this.yspeed = 0;
@@ -253,8 +304,8 @@ window.onload = function() {
 
             if (this.dist>256)
             {
-                this.xspeed += lengthdir_x(0.5,this.dir);
-                this.yspeed += lengthdir_y(0.5,this.dir);
+                this.xspeed += lengthdir_x(this.skill,this.dir);
+                this.yspeed += lengthdir_y(this.skill,this.dir);
             }
             else
             {
@@ -262,6 +313,11 @@ window.onload = function() {
                 this.yspeed += lengthdir_y(1,this.dir+90);
             }
 
+            if (Math.random()<0.01 && this.dist<800)
+            {
+                entityCreate(new bullet(this.x,this.y,this.dir,this.maxSpeed,1));
+                snd_shoot.play('',0,0.5,false,true);
+            }
 
             this.x+=this.xspeed;
             this.y+=this.yspeed;
@@ -280,12 +336,14 @@ window.onload = function() {
             var i;
             for (i in entities)
             {
-                if (entities[i] instanceof bullet)
+                if ( entities[i] instanceof bullet && entities[i].target === 0 )
                     if ( point_distance(this.x,this.y,entities[i].x,entities[i].y)<(this.radius+entities[i].radius) ) 
                     { 
                         entities[i].alive = false;
                         this.alive = false;
                         entityCreate(new dog(this.x,this.y));
+                        entityCreate(new explode(this.x,this.y));
+                        score+=10;
                     }
             }
 
@@ -302,17 +360,60 @@ window.onload = function() {
         this.angle = Math.random()*360;
         this.dir = Math.random()*360;
         this.speed=1;
+        this.dist = point_distance(this.x,this.y,obj_player.x,obj_player.y);
+        this.life = 600;
 
         this.step = function()
         {
+            this.dist = point_distance(this.x,this.y,obj_player.x,obj_player.y);
             this.angle+=1;
+            this.life--;
+
+            if (this.life<0)
+                this.alive = false;
+
+            if (this.dist<200)
+            {
+                this.dir = point_direction(this.x,this.y,obj_player.x,obj_player.y);
+                this.speed=9;
+            }
 
             this.moveToDir();
         }
     }
 
+    function explode(x,y)
+    {
+        var parent = new entity(x,y,0,'explode');
+        for (var i in parent)
+            this[i] = parent[i];
 
-    function bullet(x,y,dir,speed)
+        //this.angle = Math.random()*360;
+        //this.dir = Math.random()*360;
+        //this.speed = 1+Math.random()*4;
+        this.PhSprite.tint = 0x000000;
+        this.frame = 0;
+        this.PhSprite.scale.setTo(4,4);
+        screen_shake += 16;
+
+        snd_explode.play();
+
+        this.step = function()
+        {
+
+            this.angle-=1;
+            if (this.frame<16)
+                this.frame+=0.25;
+            else
+                this.alive = false;
+
+            this.PhSprite.frame = ~~(this.frame);
+
+            this.moveToDir();
+        }
+    }
+
+    function bullet(x,y,dir,speed,target)
     {
         var parent = new entity(x,y,0,'bullet');
         for (var i in parent)
@@ -321,10 +422,17 @@ window.onload = function() {
         this.radius = 8;
         this.dir = dir;
         this.angle = dir;
-        this.speed = 8+speed;
-        this.life = 60
+        //this.speed = 8+speed;
+        this.life = 120
         this.scale = 2;
         this.PhSprite.scale.setTo(2,2)
+        // 0 for enemies, 1 for player
+        this.target = target; 
+
+        if (this.target === 0)
+            this.speed = 8+speed;
+        else
+            this.speed = 4+speed;
 
         this.step = function()
         {
@@ -353,11 +461,25 @@ window.onload = function() {
         game.load.image('dogship','assets/dogship.png');
         game.load.image('dog','assets/dogtwo.png');
         game.load.image('bullet','assets/bullet.png');
+        game.load.spritesheet('explode','assets/explodeTiles.png',32,32);
+        game.load.audio('snd_shoot','assets/shoot.ogg',true);
+        game.load.audio('snd_explode','assets/explode.ogg',true);
+        game.load.audio('snd_bark','assets/bark.ogg',true);
+        game.load.audio('snd_music','assets/ozuwara.ogg',true);
+
     }
 
-    // variable for our player entity
+    // variables for our game
     var obj_player;
     var border;
+    var screen_shake = 0;
+    var enemies = 0;
+    var addspeed = 0.004;
+    var gameTime = 0;
+
+    // score variables
+    var score = 0;
+    var highScore = 0;
 
     //variables for our procedurally generated starfield
     var stars;
@@ -372,12 +494,26 @@ window.onload = function() {
     var leftKey;
     var rightKey;
     var shootKey;
+
+    // variables for our text objects in the titlescreen
+    var titleText;
+    var scoreText;
+
+    // variables for our text objects in the game loop
+    var gameText;
     
+    // variables to store our sound objects
+    var snd_shoot;
+    var snd_explode;
+    var snd_bark;
+    var snd_music;
 
     function create() 
     {
         // set background color to white
         game.stage.backgroundColor = '#ffffff';
+        //make the world much bigger
+        game.world.setBounds(0,0,32000,32000);
 
         // assign keys to our input variables
         upKey = game.input.keyboard.addKey(Phaser.Keyboard.UP);
@@ -392,38 +528,73 @@ window.onload = function() {
         starfield = stars.addToWorld();
         starfield.fixedToCamera = true;
 
-        //add hud border
+        // add hud border
         border = game.add.sprite(0,0,'border');
         border.anchor.setTo(0,0);
         border.scale.setTo(10,10);
         border.smoothed = false;
         border.fixedToCamera = true;
         border.bringToTop();
+
+        // add sound "sprites"
+        snd_shoot = game.add.audio('snd_shoot');
+        snd_shoot.allowMultiple = true;
+
+        snd_explode  = game.add.audio('snd_explode');
+        snd_explode.allowMultiple = true;
+
+        snd_bark  = game.add.audio('snd_bark');
+        snd_bark.allowMultiple = true;
+
+        snd_music = game.add.audio('snd_music');
+        snd_music.play('',0,0.05,true,true);
+
+        // add menu text
+        titleText = game.add.text(400, 300, "IT IS THE YEAR 3000\nDOGS HAVE EVOLVED AND NOW FLY SHIPS", {
+        font: "32px Courier New",
+        fill: "#000000",
+        align: "center"
+        });
+        titleText.anchor.setTo(0.5,0.5);
+        titleText.fixedToCamera = true;
+
+        scoreText = game.add.text(20, 20, "LAST SCORE: "+score+"\n"+"HIGH SCORE: "+highScore, {
+            font: "16px Courier New",
+            fill: "#000000",
+            align: "left"
+        });
+        scoreText.anchor.setTo(0,0);
+        scoreText.fixedToCamera = true;
+
+        //add game text
+        gameText = game.add.text(20,20,"",{
+            font: "16px Courier New",
+            fill: "#000000",
+            align: "left"
+        });
+        gameText.anchor.setTo(0,0);
+        gameText.fixedToCamera = true;
+        gameText.visible = false;
     }
 
-    var gameState = 0 //0-setup 1-gameloop 2-gameend
+    var gameState = -1 //-1=titlescreen 0=setup 1=gameloop 2=gameend/cleanup
 
     function setup()
     {
-        //make the world much bigger
-        game.world.setBounds(0,0,32000,32000);
-
         // initialze the player entity
         obj_player = new player(16000,16000);
 
         // push an alias of obj_player onto our entity list
         entities.push(obj_player);
 
-        //testing adding a dogship
-        entityCreate(new enemyShip(16300,16300) ) ; 
-
-        // have camera follow player
-        game.camera.follow(obj_player.PhSprite, Phaser.Camera.FOLLOW_TOPDOWN_TIGHT);
-        //game.camera.follow(obj_player.PhSprite);
-
+        screen_shake = 0;
+        enemies = 0;
+        addspeed = 0.004;
+        gameTime = 0;
+        score = 0;
     }
     
-    function gameLoop() 
+    function drawBG()
     {
         // draw a vignette
         stars.draw('vignette',0,0);
@@ -462,15 +633,48 @@ window.onload = function() {
                         }
 
                 }
+    }
 
+    function gameLoop() 
+    {
 
-        //update entities
+        if (screen_shake>32)
+            screen_shake = 32;
+
+        game.camera.x = obj_player.x-400+Math.random()*screen_shake;
+        game.camera.y = obj_player.y-300+Math.random()*screen_shake;
+
+        if (screen_shake>0)
+            screen_shake--;
+
+        drawBG();
+
+        gameTime++;
+        if (enemies<20 && gameTime>300)
+        {
+            if (Math.random()<addspeed)
+            {
+                if (addspeed <0.01)
+                    addspeed += 0.0001;
+                enemies++;
+                var createDir = Math.random()*360;
+                entityCreate(new enemyShip(obj_player.x+lengthdir_x(500,createDir),obj_player.y+lengthdir_y(500,createDir) )  );
+            }
+        }
+
+        // update entities
+        // have to increment backwards to allow for deletions
         var i = entities.length;
         while(i--)
         {
             entities[i].step();
+
             if (entities[i].alive === false)
+            {
+                if (entities[i] instanceof enemyShip)
+                    enemies--;
                 entityDestroy(i);
+            }
         }
 
         //update phaser sprites
@@ -479,6 +683,8 @@ window.onload = function() {
         {
             entities[i].update();
         }
+
+        gameText.setText("LIFE: "+obj_player.life+"\n"+"SCORE: "+score);
     }
 
     function gameEnd()
@@ -488,10 +694,70 @@ window.onload = function() {
         {
             entityDestroy(i);
         }
+
+        storyIndex = 0;
+        storyTime = 0;
+        if (score > highScore)
+            highScore = score;
+
+        scoreText.setText("LAST SCORE: "+score+"\n"+"HIGH SCORE: "+highScore);
+        titleText.visible = true;
+        scoreText.visible = true;
+        gameText.visible = false;
+
+
+    }
+
+    var story = [
+                "IT IS THE YEAR 3000\nDOGS HAVE EVOLVED AND NOW FLY SHIPS",
+                "YOU ARE A DOG CATCHER\nTHIS IS THE STORY OF...",
+                "SPACE ANIMAL CONTROL\nPRESS X TO START"
+                ];
+
+    var storyIndex = 0;
+    var storyTime = 0;
+
+    function titleScreen()
+    {
+            if (storyTime>=100)
+            {
+                storyTime = 0;
+                storyIndex++;
+
+                if (storyIndex>story.length-1)
+                    storyIndex = 0;
+
+                titleText.setText(story[storyIndex]);
+            }
+            else
+                storyTime++;
+
+            game.camera.x= game.camera.x+4;
+            game.camera.y= game.camera.y+4;
+
+            if (game.camera.x > 32000)
+                game.camera.x = 0;
+            if (game.camera.y > 32000)
+                game.camera.y = 0;
+            drawBG();
+
+            if (shootKey.isDown)
+            {
+                gameState = 0;
+                titleText.visible = false;
+                scoreText.visible = false;
+                gameText.visible = true;
+                storyIndex = 0;
+                storyTime = 0;
+            }
     }
 
     function update()
     {
+        if (gameState === -1)
+        {
+            titleScreen();
+        }
         if (gameState === 0)
         {
             gameState = 1;
@@ -504,7 +770,7 @@ window.onload = function() {
 
         else if (gameState === 2)
         {
-            gameState = 0;
+            gameState = -1;
             gameEnd();
         }
     }
